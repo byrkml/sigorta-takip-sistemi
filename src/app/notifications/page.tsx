@@ -148,7 +148,7 @@ export default function NotificationsPage() {
               <div
                 key={notif.id}
                 className={`p-4 flex items-start justify-between gap-4 transition-colors ${
-                  notif.is_read ? 'bg-white opacity-70' : 'bg-blue-50/40'
+                notif.is_read ? 'bg-white' : 'bg-blue-50/40'
                 }`}
               >
                 <div className="flex items-start gap-3">
