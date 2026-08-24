@@ -62,11 +62,12 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
-        <div className="text-xs text-slate-500 text-center">
-          v1.0.0 &bull; Güvenli Acente Portalı
-        </div>
-      </div>
+    <div className="p-4 border-t border-slate-800">
+    <div className="text-xs text-slate-500 text-center space-y-1">
+        <div>v1.0.0 • Güvenli Acente Portalı</div>
+        <div>© 2026 Kemal Bayır. Tüm hakları saklıdır.</div>
+    </div>
+    </div>
     </aside>
   );
 }
