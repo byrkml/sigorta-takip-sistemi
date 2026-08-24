@@ -64,7 +64,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="acente@sigortatakip.com"
+                placeholder="acente@gmail.com"
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 transition-all placeholder:text-slate-400"
               />
             </div>
@@ -99,7 +99,7 @@ export default function LoginPage() {
 
         <div className="mt-8 pt-6 border-t border-slate-100 text-center">
           <p className="text-[11px] text-slate-400">
-            Güvenli Acente Portalı &bull; 256-Bit SSL Koruması
+            Güvenli Acente Portalı &bull; © 2026 Kemal Bayır. Tüm hakları saklıdır.
           </p>
         </div>
       </div>
