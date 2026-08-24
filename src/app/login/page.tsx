@@ -98,9 +98,12 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-          <p className="text-[11px] text-slate-400">
-            Güvenli Acente Portalı &bull; © 2026 Kemal Bayır. Tüm hakları saklıdır.
-          </p>
+        <p className="text-[11px] text-slate-400">
+            Güvenli Acente Portalı &bull;
+        </p>
+        <p className="text-[11px] text-slate-400 mt-1">
+            © 2026 Kemal Bayır. Tüm hakları saklıdır.
+        </p>
         </div>
       </div>
     </div>
