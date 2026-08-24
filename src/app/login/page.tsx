@@ -99,7 +99,7 @@ export default function LoginPage() {
 
         <div className="mt-8 pt-6 border-t border-slate-100 text-center">
         <p className="text-[11px] text-slate-400">
-            Güvenli Acente Portalı &bull;
+            Güvenli Acente Portalı
         </p>
         <p className="text-[11px] text-slate-400 mt-1">
             © 2026 Kemal Bayır. Tüm hakları saklıdır.
