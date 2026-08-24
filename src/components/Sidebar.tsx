@@ -11,7 +11,8 @@ import {
   Bell, 
   Building2, 
   ShieldCheck,
-  BarChart3
+  BarChart3,
+  Settings
 } from 'lucide-react';
 
 const menuItems = [
@@ -23,6 +24,7 @@ const menuItems = [
   { name: 'Bildirimler', href: '/notifications', icon: Bell },
   { name: 'Sigorta Şirketleri', href: '/companies', icon: Building2 },
   { name: 'Raporlar', href: '/reports', icon: BarChart3 },
+  { name: 'Ayarlar', href: '/settings', icon: Settings },
 ];
 
 export default function Sidebar() {
@@ -62,12 +64,14 @@ export default function Sidebar() {
         })}
       </nav>
 
-    <div className="p-4 border-t border-slate-800">
-    <div className="text-xs text-slate-500 text-center space-y-1">
-        <div>v1.0.0 • Güvenli Acente Portalı</div>
-        <div>© 2026 Kemal Bayır. Tüm hakları saklıdır.</div>
-    </div>
-    </div>
+        <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+        <p className="text-[11px] text-slate-400">
+            Güvenli Acente Portalı
+        </p>
+        <p className="text-[11px] text-slate-400 mt-1">
+            © 2026 Kemal Bayır. Tüm hakları saklıdır.
+        </p>
+        </div>
     </aside>
   );
 }
