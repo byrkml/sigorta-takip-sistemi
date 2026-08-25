@@ -19,7 +19,7 @@ export default function AddCustomerModal({
   const [lastName, setLastName] = useState('');
   const [tcNumber, setTcNumber] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,15 +33,21 @@ export default function AddCustomerModal({
     setError(null);
 
     try {
+      // Türkçe kurallarına uygun olarak otomatik BÜYÜK HARFE dönüştürme
+      const upperFirstName = firstName.trim().toLocaleUpperCase('tr-TR');
+      const upperLastName = lastName.trim().toLocaleUpperCase('tr-TR');
+      const upperAddress = address.trim() ? address.trim().toLocaleUpperCase('tr-TR') : null;
+      const upperNotes = notes.trim() ? notes.trim().toLocaleUpperCase('tr-TR') : null;
+
       const { error: insertError } = await supabase.from('customers').insert([
         {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
+          first_name: upperFirstName,
+          last_name: upperLastName,
           tc_number: tcNumber.trim(),
           phone: phone.trim(),
-          email: email.trim() || null,
-          address: address.trim() || null,
-          notes: notes.trim() || null,
+          birth_date: birthDate ? birthDate : null,
+          address: upperAddress,
+          notes: upperNotes,
         },
       ]);
 
@@ -52,7 +58,7 @@ export default function AddCustomerModal({
       setLastName('');
       setTcNumber('');
       setPhone('');
-      setEmail('');
+      setBirthDate('');
       setAddress('');
       setNotes('');
 
@@ -104,8 +110,8 @@ export default function AddCustomerModal({
                 required
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Örn: Ahmet"
-                className={inputClass}
+                placeholder="Örn: AHMET"
+                className={`${inputClass} uppercase`}
               />
             </div>
             <div>
@@ -117,8 +123,8 @@ export default function AddCustomerModal({
                 required
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                placeholder="Örn: Yılmaz"
-                className={inputClass}
+                placeholder="Örn: YILMAZ"
+                className={`${inputClass} uppercase`}
               />
             </div>
           </div>
@@ -155,13 +161,13 @@ export default function AddCustomerModal({
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              E-posta
+              Doğum Tarihi *
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ornek@mail.com"
+              type="date"
+              required
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
               className={inputClass}
             />
           </div>
@@ -175,7 +181,7 @@ export default function AddCustomerModal({
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Açık adres bilgisi..."
-              className={`${inputClass} resize-none`}
+              className={`${inputClass} uppercase resize-none`}
             />
           </div>
 
@@ -187,8 +193,8 @@ export default function AddCustomerModal({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Müşteriyle ilgili hatırlatıcı notlar..."
-              className={inputClass}
+              placeholder="Müşteriyle ilgili notlar..."
+              className={`${inputClass} uppercase`}
             />
           </div>
 

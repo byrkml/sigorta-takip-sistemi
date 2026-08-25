@@ -134,7 +134,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             <Phone className="w-4 h-4 text-slate-400" /> {customer.phone}
           </p>
           <p className="text-sm text-slate-600 flex items-center gap-2">
-            <Mail className="w-4 h-4 text-slate-400" /> {customer.email || '-'}
+            <Mail className="w-4 h-4 text-slate-400" /> {customer.birth_date || '-'}
           </p>
         </div>
         <div className="space-y-2">

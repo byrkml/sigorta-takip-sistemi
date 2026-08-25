@@ -6,7 +6,7 @@ export interface Customer {
   last_name: string;
   tc_number: string;
   phone: string;
-  email?: string | null;
+  birth_date?: string | null;
   address?: string | null;
   notes?: string | null;
   created_at?: string;

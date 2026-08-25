@@ -1,86 +1,84 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { InsuranceCompany, Policy } from '@/types/database';
-import { X, RefreshCw, AlertCircle } from 'lucide-react';
-import { addYears, format, parseISO } from 'date-fns';
+import { Policy, InsuranceCompany } from '@/types/database';
+import { X, RefreshCw, Loader2, FileCheck } from 'lucide-react';
 
-interface Props {
+interface RenewPolicyModalProps {
   isOpen: boolean;
-  policy: Policy | null;
   onClose: () => void;
   onSuccess: () => void;
+  policy: Policy | null;
 }
 
-export default function RenewPolicyModal({ isOpen, policy, onClose, onSuccess }: Props) {
+export default function RenewPolicyModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  policy,
+}: RenewPolicyModalProps) {
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
+  const [companyId, setCompanyId] = useState<string>('');
+  const [policyNumber, setPolicyNumber] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [premiumAmount, setPremiumAmount] = useState('');
+  const [currency, setCurrency] = useState('TRY');
+  const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
-    company_id: '',
-    policy_number: '',
-    start_date: '',
-    end_date: '',
-    premium_amount: '',
-    currency: 'TRY',
-    notes: '',
-  });
-
   useEffect(() => {
+    if (!isOpen || !policy) return;
+
+    // Varsayılan yeni tarihler: Eski bitiş tarihi -> Yeni başlangıç olur, 1 yıl sonrası yeni bitiş
+    const prevEndDate = new Date(policy.end_date);
+    const newStart = policy.end_date;
+    const nextYear = new Date(prevEndDate);
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    const newEnd = nextYear.toISOString().split('T')[0];
+
+    setCompanyId(policy.company_id || '');
+    setPolicyNumber('');
+    setStartDate(newStart);
+    setEndDate(newEnd);
+    setPremiumAmount(policy.premium_amount ? policy.premium_amount.toString() : '');
+    setCurrency(policy.currency || 'TRY');
+    setNotes(`Önceki Poliçe No: ${policy.policy_number} üzerinden yenilendi.`);
+
     async function loadCompanies() {
       const { data } = await supabase
         .from('insurance_companies')
         .select('*')
-        .eq('is_active', true)
         .order('name');
-      if (data) setCompanies(data);
+      setCompanies(data || []);
     }
-    if (isOpen) loadCompanies();
-  }, [isOpen]);
 
-  useEffect(() => {
-    if (policy) {
-      // Yeni başlangıç tarihi: Eski bitiş tarihi
-      const newStartDate = policy.end_date;
-      // Yeni bitiş tarihi: Başlangıçtan 1 yıl sonrası
-      const calculatedEnd = format(addYears(parseISO(newStartDate), 1), 'yyyy-MM-dd');
-
-      setFormData({
-        company_id: policy.company_id,
-        policy_number: '',
-        start_date: newStartDate,
-        end_date: calculatedEnd,
-        premium_amount: policy.premium_amount ? policy.premium_amount.toString() : '',
-        currency: policy.currency || 'TRY',
-        notes: `Önceki Poliçe No: ${policy.policy_number} üzerinden yenilendi.`,
-      });
-    }
-  }, [policy]);
+    loadCompanies();
+  }, [isOpen, policy]);
 
   if (!isOpen || !policy) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRenew = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setLoading(true);
+    setError(null);
 
     try {
-      // 1. Yeni poliçeyi ekle (parent_policy_id eski poliçeyi gösterecek)
+      // 1. Yeni Poliçe Kaydını Ekle
       const { error: insertError } = await supabase.from('policies').insert([
         {
           customer_id: policy.customer_id,
           vehicle_id: policy.vehicle_id,
-          company_id: formData.company_id,
+          company_id: companyId || null,
           policy_type: policy.policy_type,
-          policy_number: formData.policy_number.trim(),
-          start_date: formData.start_date,
-          end_date: formData.end_date,
-          premium_amount: parseFloat(formData.premium_amount) || 0,
-          currency: formData.currency,
-          parent_policy_id: policy.id, // Geçmiş zinciri
-          notes: formData.notes.trim() || null,
+          policy_number: policyNumber.trim().toUpperCase(),
+          start_date: startDate,
+          end_date: endDate,
+          premium_amount: parseFloat(premiumAmount) || 0,
+          currency: currency,
+          notes: notes.trim() || null,
         },
       ]);
 
@@ -89,48 +87,54 @@ export default function RenewPolicyModal({ isOpen, policy, onClose, onSuccess }:
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Poliçe yenilenirken hata oluştu.');
+      console.error('Poliçe yenilenirken hata:', err);
+      setError(err.message || 'Poliçe yenilenemedi.');
     } finally {
       setLoading(false);
     }
   };
 
+  const inputClass =
+    'w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all';
+
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <div className="flex items-center gap-2 text-slate-800 font-semibold">
-            <RefreshCw className="w-5 h-5 text-blue-600" />
-            <span>Poliçe Yenileme ({policy.policy_type})</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        {/* Başlık */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-2 text-blue-600">
+            <RefreshCw className="w-5 h-5" />
+            <h3 className="font-bold text-slate-900 text-base">
+              Poliçe Yenileme ({policy.policy_type})
+            </h3>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-all"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-4 mx-6 mt-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2.5 text-xs text-blue-800">
-          <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-          <div>
-            <strong>Eski Poliçe No:</strong> {policy.policy_number} <br />
-            Eski poliçe geçmiş olarak arşivlenecek ve yeni poliçe 1 yıllık dönem için aktifleşecektir.
+        {error && (
+          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium">
+            {error}
           </div>
-        </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleRenew} className="p-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Sigorta Şirketi *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Sigorta Şirketi *
+              </label>
               <select
-                value={formData.company_id}
-                onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                value={companyId}
+                onChange={(e) => setCompanyId(e.target.value)}
+                className={inputClass}
+                required
               >
+                <option value="">Şirket Seçin</option>
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -139,60 +143,70 @@ export default function RenewPolicyModal({ isOpen, policy, onClose, onSuccess }:
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Yeni Poliçe No *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Yeni Poliçe No *
+              </label>
               <input
-                required
                 type="text"
+                required
+                value={policyNumber}
+                onChange={(e) => setPolicyNumber(e.target.value)}
                 placeholder="Yeni poliçe no"
-                value={formData.policy_number}
-                onChange={(e) => setFormData({ ...formData, policy_number: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-mono"
+                className={`${inputClass} font-mono uppercase`}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Yeni Başlangıç *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Yeni Başlangıç *
+              </label>
               <input
-                required
                 type="date"
-                value={formData.start_date}
-                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Yeni Bitiş *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Yeni Bitiş *
+              </label>
               <input
-                required
                 type="date"
-                value={formData.end_date}
-                onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                required
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={inputClass}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Yeni Prim Tutarı *</label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Yeni Prim Tutarı *
+              </label>
               <input
-                required
                 type="number"
                 step="0.01"
-                placeholder="0.00"
-                value={formData.premium_amount}
-                onChange={(e) => setFormData({ ...formData, premium_amount: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                required
+                value={premiumAmount}
+                onChange={(e) => setPremiumAmount(e.target.value)}
+                placeholder="Örn: 9441.51"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Birim</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Birim
+              </label>
               <select
-                value={formData.currency}
-                onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className={inputClass}
               >
                 <option value="TRY">₺ TRY</option>
                 <option value="USD">$ USD</option>
@@ -201,29 +215,41 @@ export default function RenewPolicyModal({ isOpen, policy, onClose, onSuccess }:
             </div>
           </div>
 
+          {/* Çok Satırlı Yenileme / Teklif Notu Alanı */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Yenileme Notu</label>
-            <input
-              type="text"
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Yenileme Notu / Teklif Karşılaştırması
+            </label>
+            <textarea
+              rows={6}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Fiyat tekliflerini ve notları buraya yapıştırabilirsiniz..."
+              className={`${inputClass} resize-y font-sans leading-relaxed whitespace-pre-wrap`}
             />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Farklı şirketlerden aldığınız teklif listesini doğrudan yapıştırabilirsiniz, satır düzeni korunur.
+            </p>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-100"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
             >
-              Vazgeç
+              İptal
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-500/20 disabled:opacity-50 flex items-center gap-1.5"
             >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileCheck className="w-4 h-4" />
+              )}
               {loading ? 'Yenileniyor...' : 'Poliçeyi Yenile'}
             </button>
           </div>
