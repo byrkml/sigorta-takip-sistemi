@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { InsuranceCompany, PolicyType, Vehicle } from '@/types/database';
-import { X, FileText } from 'lucide-react';
+import { X, FileText, Loader2 } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -44,7 +44,7 @@ export default function AddPolicyModal({
 
   useEffect(() => {
     async function loadData() {
-      // 1. Şirketleri çek
+      // 1. Sigorta şirketlerini çek
       const { data: compData } = await supabase
         .from('insurance_companies')
         .select('*')
@@ -55,7 +55,7 @@ export default function AddPolicyModal({
         setFormData((prev) => ({ ...prev, company_id: compData[0].id }));
       }
 
-      // 2. Bu müşteriye ait varsa araçları çek
+      // 2. Müşterinin varsa araçlarını çek
       if (customerId) {
         const { data: vehData } = await supabase
           .from('vehicles')
@@ -93,7 +93,7 @@ export default function AddPolicyModal({
       const { error: insertError } = await supabase.from('policies').insert([
         {
           customer_id: customerId,
-          vehicle_id: selectedVehicleId ? selectedVehicleId : null, // Araç yoksa NULL kaydedilir
+          vehicle_id: selectedVehicleId ? selectedVehicleId : null,
           company_id: formData.company_id,
           policy_type: formData.policy_type,
           policy_number: upperPolicyNumber,
@@ -273,15 +273,16 @@ export default function AddPolicyModal({
             </div>
           </div>
 
+          {/* Çok Satırlı, Alt Satıra Kayan Poliçe Notu Alanı */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Poliçe Notu</label>
-            <input
-              type="text"
-              placeholder="ÖRN: 2. KATTTAKİ DAİRE İÇİN DASK KESİLDİ"
+            <textarea
+              rows={3}
+              placeholder="ÖRN: 2. KATTAKİ DAİRE İÇİN DASK KESİLDİ / TAKSİTLİ ÇEKİLDİ / %20 HASARSIZLIK İNDİRİMİ..."
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               style={forcedDarkTextStyle}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase leading-relaxed break-words whitespace-pre-wrap resize-y text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
             />
           </div>
 
@@ -296,8 +297,9 @@ export default function AddPolicyModal({
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-1.5"
             >
+              {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {loading ? 'Kaydediliyor...' : 'Poliçeyi Kaydet'}
             </button>
           </div>

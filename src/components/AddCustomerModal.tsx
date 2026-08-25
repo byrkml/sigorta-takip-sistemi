@@ -33,7 +33,6 @@ export default function AddCustomerModal({
     setError(null);
 
     try {
-      // Türkçe kurallarına uygun olarak otomatik BÜYÜK HARFE dönüştürme
       const upperFirstName = firstName.trim().toLocaleUpperCase('tr-TR');
       const upperLastName = lastName.trim().toLocaleUpperCase('tr-TR');
       const upperAddress = address.trim() ? address.trim().toLocaleUpperCase('tr-TR') : null;
@@ -110,7 +109,7 @@ export default function AddCustomerModal({
                 required
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Örn: AHMET"
+                placeholder="ÖRN: AHMET"
                 className={`${inputClass} uppercase`}
               />
             </div>
@@ -123,7 +122,7 @@ export default function AddCustomerModal({
                 required
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                placeholder="Örn: YILMAZ"
+                placeholder="ÖRN: YILMAZ"
                 className={`${inputClass} uppercase`}
               />
             </div>
@@ -180,21 +179,22 @@ export default function AddCustomerModal({
               rows={2}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="Açık adres bilgisi..."
-              className={`${inputClass} uppercase resize-none`}
+              placeholder="AÇIK ADRES BİLGİSİ..."
+              className={`${inputClass} uppercase resize-y leading-relaxed break-words whitespace-pre-wrap`}
             />
           </div>
 
+          {/* Çok Satırlı Özel Notlar Alanı */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
               Özel Notlar
             </label>
-            <input
-              type="text"
+            <textarea
+              rows={3}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Müşteriyle ilgili notlar..."
-              className={`${inputClass} uppercase`}
+              placeholder="MÜŞTERİYLE İLGİLİ HATIRLATICI NOTLAR, ÖZEL TALEPLER..."
+              className={`${inputClass} uppercase resize-y leading-relaxed break-words whitespace-pre-wrap`}
             />
           </div>
 

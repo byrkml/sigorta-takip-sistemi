@@ -34,7 +34,6 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
     setLoading(true);
 
     try {
-      // Tüm metin alanlarını Türkçe kurallarına uygun BÜYÜK HARFE dönüştürme
       const upperPlate = formData.plate.replace(/\s+/g, '').toLocaleUpperCase('tr-TR');
       const upperLicense = formData.license_serial.trim() ? formData.license_serial.trim().toLocaleUpperCase('tr-TR') : null;
       const upperBrand = formData.brand.trim().toLocaleUpperCase('tr-TR');
@@ -122,7 +121,7 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
               <label className="block text-xs font-semibold text-slate-700 mb-1">Ruhsat Seri No</label>
               <input
                 type="text"
-                placeholder="Örn: AB 123456"
+                placeholder="ÖRN: AB 123456"
                 value={formData.license_serial}
                 onChange={(e) => setFormData({ ...formData, license_serial: e.target.value })}
                 style={forcedDarkTextStyle}
@@ -137,7 +136,7 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
               <input
                 required
                 type="text"
-                placeholder="Örn: RENAULT"
+                placeholder="ÖRN: RENAULT"
                 value={formData.brand}
                 onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                 style={forcedDarkTextStyle}
@@ -149,7 +148,7 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
               <input
                 required
                 type="text"
-                placeholder="Örn: MEGANE"
+                placeholder="ÖRN: MEGANE"
                 value={formData.model}
                 onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                 style={forcedDarkTextStyle}
@@ -212,15 +211,16 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
             />
           </div>
 
+          {/* Alt Satıra Geçen ve Otomatik Kayan Çok Satırlı Araç Notu Alanı */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Araç Notu</label>
-            <input
-              type="text"
-              placeholder="ÖRN: SOL ÇAMURLUK LOKAL BOYALI"
+            <textarea
+              rows={3}
+              placeholder="ÖRN: SOL ÇAMURLUK LOKAL BOYALI, ÖN CAM ORİJİNALİYLE DEĞİŞTİ..."
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               style={forcedDarkTextStyle}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase leading-relaxed break-words whitespace-pre-wrap resize-y focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
             />
           </div>
 
