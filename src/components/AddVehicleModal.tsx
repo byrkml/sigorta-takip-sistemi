@@ -34,18 +34,27 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
     setLoading(true);
 
     try {
+      // Tüm metin alanlarını Türkçe kurallarına uygun BÜYÜK HARFE dönüştürme
+      const upperPlate = formData.plate.replace(/\s+/g, '').toLocaleUpperCase('tr-TR');
+      const upperLicense = formData.license_serial.trim() ? formData.license_serial.trim().toLocaleUpperCase('tr-TR') : null;
+      const upperBrand = formData.brand.trim().toLocaleUpperCase('tr-TR');
+      const upperModel = formData.model.trim().toLocaleUpperCase('tr-TR');
+      const upperChassis = formData.chassis_number.trim() ? formData.chassis_number.trim().toLocaleUpperCase('tr-TR') : null;
+      const upperMotor = formData.motor_number.trim() ? formData.motor_number.trim().toLocaleUpperCase('tr-TR') : null;
+      const upperNotes = formData.notes.trim() ? formData.notes.trim().toLocaleUpperCase('tr-TR') : null;
+
       const { error: insertError } = await supabase.from('vehicles').insert([
         {
           customer_id: customerId,
-          plate: formData.plate.toUpperCase().replace(/\s+/g, ''),
-          license_serial: formData.license_serial.toUpperCase().trim() || null,
-          brand: formData.brand.trim(),
-          model: formData.model.trim(),
+          plate: upperPlate,
+          license_serial: upperLicense,
+          brand: upperBrand,
+          model: upperModel,
           year: formData.year ? parseInt(formData.year) : null,
           vehicle_type: formData.vehicle_type,
-          chassis_number: formData.chassis_number.toUpperCase().trim() || null,
-          motor_number: formData.motor_number.toUpperCase().trim() || null,
-          notes: formData.notes.trim() || null,
+          chassis_number: upperChassis,
+          motor_number: upperMotor,
+          notes: upperNotes,
         },
       ]);
 
@@ -71,6 +80,11 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
     }
   };
 
+  const forcedDarkTextStyle = {
+    color: '#0f172a',
+    backgroundColor: '#ffffff',
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-xl overflow-hidden">
@@ -93,59 +107,64 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Plaka *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Plaka *</label>
               <input
                 required
                 type="text"
                 placeholder="34ABC123"
                 value={formData.plate}
                 onChange={(e) => setFormData({ ...formData, plate: e.target.value })}
+                style={forcedDarkTextStyle}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold uppercase tracking-wider focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Ruhsat Seri No</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Ruhsat Seri No</label>
               <input
                 type="text"
                 placeholder="Örn: AB 123456"
                 value={formData.license_serial}
                 onChange={(e) => setFormData({ ...formData, license_serial: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Marka *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Marka *</label>
               <input
                 required
                 type="text"
-                placeholder="Örn: Renault"
+                placeholder="Örn: RENAULT"
                 value={formData.brand}
                 onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Model *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Model *</label>
               <input
                 required
                 type="text"
-                placeholder="Örn: Megane"
+                placeholder="Örn: MEGANE"
                 value={formData.model}
                 onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Model Yılı</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Model Yılı</label>
               <input
                 type="number"
                 min="1970"
                 max="2030"
                 value={formData.year}
                 onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+                style={forcedDarkTextStyle}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
@@ -153,11 +172,12 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Araç Türü</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Araç Türü</label>
               <select
                 value={formData.vehicle_type}
                 onChange={(e) => setFormData({ ...formData, vehicle_type: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               >
                 <option value="Otomobil">Otomobil</option>
                 <option value="Kamyonet">Kamyonet</option>
@@ -168,36 +188,39 @@ export default function AddVehicleModal({ isOpen, customerId, onClose, onSuccess
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Şasi Numarası</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Şasi Numarası</label>
               <input
                 type="text"
-                placeholder="17 haneli şasi no"
+                placeholder="17 HANELİ ŞASİ NO"
                 value={formData.chassis_number}
                 onChange={(e) => setFormData({ ...formData, chassis_number: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Motor Numarası</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Motor Numarası</label>
             <input
               type="text"
-              placeholder="Motor numarası"
+              placeholder="MOTOR NUMARASI"
               value={formData.motor_number}
               onChange={(e) => setFormData({ ...formData, motor_number: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              style={forcedDarkTextStyle}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Araç Notu</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Araç Notu</label>
             <input
               type="text"
-              placeholder="Örn: Sol çamurluk lokal boyalı"
+              placeholder="ÖRN: SOL ÇAMURLUK LOKAL BOYALI"
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              style={forcedDarkTextStyle}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
             />
           </div>
 
