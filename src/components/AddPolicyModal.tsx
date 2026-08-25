@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { InsuranceCompany, PolicyType } from '@/types/database';
+import { InsuranceCompany, PolicyType, Vehicle } from '@/types/database';
 import { X, FileText } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   customerId: string;
-  vehicleId: string;
+  vehicleId?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -16,11 +16,13 @@ interface Props {
 export default function AddPolicyModal({
   isOpen,
   customerId,
-  vehicleId,
+  vehicleId = '',
   onClose,
   onSuccess,
 }: Props) {
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(vehicleId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,21 +43,41 @@ export default function AddPolicyModal({
   });
 
   useEffect(() => {
-    async function loadCompanies() {
-      const { data } = await supabase
+    async function loadData() {
+      // 1. Şirketleri çek
+      const { data: compData } = await supabase
         .from('insurance_companies')
         .select('*')
-        .eq('is_active', true)
         .order('name');
-      if (data && data.length > 0) {
-        setCompanies(data);
-        setFormData((prev) => ({ ...prev, company_id: data[0].id }));
+      
+      if (compData && compData.length > 0) {
+        setCompanies(compData);
+        setFormData((prev) => ({ ...prev, company_id: compData[0].id }));
+      }
+
+      // 2. Bu müşteriye ait varsa araçları çek
+      if (customerId) {
+        const { data: vehData } = await supabase
+          .from('vehicles')
+          .select('*')
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: false });
+
+        setVehicles(vehData || []);
+        if (vehicleId) {
+          setSelectedVehicleId(vehicleId);
+        } else if (vehData && vehData.length > 0) {
+          setSelectedVehicleId(vehData[0].id);
+        } else {
+          setSelectedVehicleId('');
+        }
       }
     }
+
     if (isOpen) {
-      loadCompanies();
+      loadData();
     }
-  }, [isOpen]);
+  }, [isOpen, customerId, vehicleId]);
 
   if (!isOpen) return null;
 
@@ -65,18 +87,21 @@ export default function AddPolicyModal({
     setLoading(true);
 
     try {
+      const upperPolicyNumber = formData.policy_number.trim().toLocaleUpperCase('tr-TR');
+      const upperNotes = formData.notes.trim() ? formData.notes.trim().toLocaleUpperCase('tr-TR') : null;
+
       const { error: insertError } = await supabase.from('policies').insert([
         {
           customer_id: customerId,
-          vehicle_id: vehicleId,
+          vehicle_id: selectedVehicleId ? selectedVehicleId : null, // Araç yoksa NULL kaydedilir
           company_id: formData.company_id,
           policy_type: formData.policy_type,
-          policy_number: formData.policy_number.trim(),
+          policy_number: upperPolicyNumber,
           start_date: formData.start_date,
           end_date: formData.end_date,
           premium_amount: parseFloat(formData.premium_amount) || 0,
           currency: formData.currency,
-          notes: formData.notes.trim() || null,
+          notes: upperNotes,
         },
       ]);
 
@@ -84,11 +109,26 @@ export default function AddPolicyModal({
 
       onSuccess();
       onClose();
+      setFormData({
+        company_id: companies.length > 0 ? companies[0].id : '',
+        policy_type: 'Trafik' as PolicyType,
+        policy_number: '',
+        start_date: todayStr,
+        end_date: nextYearStr,
+        premium_amount: '',
+        currency: 'TRY',
+        notes: '',
+      });
     } catch (err: any) {
       setError(err.message || 'Poliçe kaydedilirken bir hata oluştu.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const forcedDarkTextStyle = {
+    color: '#0f172a',
+    backgroundColor: '#ffffff',
   };
 
   return (
@@ -117,22 +157,46 @@ export default function AddPolicyModal({
               <select
                 value={formData.policy_type}
                 onChange={(e) => setFormData({ ...formData, policy_type: e.target.value as PolicyType })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               >
                 <option value="Trafik">Trafik Sigortası</option>
                 <option value="Kasko">Kasko</option>
-                <option value="DASK">DASK</option>
+                <option value="DASK">DASK (Deprem)</option>
                 <option value="Konut">Konut Sigortası</option>
-                <option value="Sağlık">Sağlık Sigortası</option>
+                <option value="Sağlık">Sağlık / TSS</option>
                 <option value="Diğer">Diğer</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                İlişkili Araç <span className="text-slate-400 font-normal">(Opsiyonel)</span>
+              </label>
+              <select
+                value={selectedVehicleId}
+                onChange={(e) => setSelectedVehicleId(e.target.value)}
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              >
+                <option value="">Araç Yok (DASK / Sağlık / Konut vb.)</option>
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.plate} - {v.brand} {v.model}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Sigorta Şirketi *</label>
               <select
                 value={formData.company_id}
                 onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               >
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -141,18 +205,18 @@ export default function AddPolicyModal({
                 ))}
               </select>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Poliçe Numarası *</label>
-            <input
-              required
-              type="text"
-              placeholder="Örn: POL-2026-987654"
-              value={formData.policy_number}
-              onChange={(e) => setFormData({ ...formData, policy_number: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-mono"
-            />
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Poliçe Numarası *</label>
+              <input
+                required
+                type="text"
+                placeholder="ÖRN: POL-2026-987654"
+                value={formData.policy_number}
+                onChange={(e) => setFormData({ ...formData, policy_number: e.target.value })}
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase font-mono text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -163,7 +227,8 @@ export default function AddPolicyModal({
                 type="date"
                 value={formData.start_date}
                 onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
             <div>
@@ -173,7 +238,8 @@ export default function AddPolicyModal({
                 type="date"
                 value={formData.end_date}
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
           </div>
@@ -188,7 +254,8 @@ export default function AddPolicyModal({
                 placeholder="0.00"
                 value={formData.premium_amount}
                 onChange={(e) => setFormData({ ...formData, premium_amount: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
             <div>
@@ -196,7 +263,8 @@ export default function AddPolicyModal({
               <select
                 value={formData.currency}
                 onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                style={forcedDarkTextStyle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               >
                 <option value="TRY">₺ TRY</option>
                 <option value="USD">$ USD</option>
@@ -209,10 +277,11 @@ export default function AddPolicyModal({
             <label className="block text-xs font-semibold text-slate-600 mb-1">Poliçe Notu</label>
             <input
               type="text"
-              placeholder="Örn: Taksitli çekildi / %20 hasarsızlık indirimi"
+              placeholder="ÖRN: 2. KATTTAKİ DAİRE İÇİN DASK KESİLDİ"
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              style={forcedDarkTextStyle}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
             />
           </div>
 
@@ -220,14 +289,14 @@ export default function AddPolicyModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-100"
+              className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-100 transition-all"
             >
               İptal
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all disabled:opacity-50"
             >
               {loading ? 'Kaydediliyor...' : 'Poliçeyi Kaydet'}
             </button>

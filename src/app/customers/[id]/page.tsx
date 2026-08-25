@@ -1,72 +1,111 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { use, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Customer, Vehicle, Policy, InsuranceCompany } from '@/types/database';
+import { getPolicyStatus, PolicyStatusInfo } from '@/lib/policyUtils';
 import AddVehicleModal from '@/components/AddVehicleModal';
 import AddPolicyModal from '@/components/AddPolicyModal';
 import RenewPolicyModal from '@/components/RenewPolicyModal';
-import { getPolicyStatus } from '@/lib/policyUtils';
 import { 
-  ArrowLeft, 
-  Car, 
+  User, 
   Phone, 
-  Mail, 
+  Calendar, 
   MapPin, 
-  PlusCircle, 
-  Calendar,
-  FilePlus2,
+  FileText, 
+  Car, 
+  Plus, 
+  ArrowLeft,
+  AlertCircle,
   RefreshCw,
-  History
+  FileSpreadsheet,
+  X,
+  Copy,
+  Check
 } from 'lucide-react';
 import Link from 'next/link';
 
-interface PolicyWithCompany extends Policy {
+interface EnrichedPolicy extends Policy {
   insurance_companies?: InsuranceCompany;
+  vehicles?: Vehicle;
+  statusInfo: PolicyStatusInfo;
 }
 
-export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
+// GG.AA.YYYY formatlayıcı
+const formatDateTR = (dateStr?: string | null) => {
+  if (!dateStr) return '-';
+  const parts = dateStr.split('T')[0].split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day.padStart(2, '0')}.${month.padStart(2, '0')}.${year}`;
+  }
+  return new Date(dateStr).toLocaleDateString('tr-TR');
+};
+
+export default function CustomerDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }> | { id: string };
+}) {
+  const resolvedParams = params instanceof Promise ? use(params) : params;
   const customerId = resolvedParams.id;
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [policies, setPolicies] = useState<PolicyWithCompany[]>([]);
+  const [policies, setPolicies] = useState<EnrichedPolicy[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
+  // Modallar
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
-  const [selectedVehicleForPolicy, setSelectedVehicleForPolicy] = useState<string | null>(null);
-  const [policyToRenew, setPolicyToRenew] = useState<Policy | null>(null);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [selectedVehicleForPolicy, setSelectedVehicleForPolicy] = useState<string>('');
+  const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
+  const [selectedPolicyForRenew, setSelectedPolicyForRenew] = useState<Policy | null>(null);
+
+  // Not Görüntüleme Modalı State
+  const [viewingNotePolicy, setViewingNotePolicy] = useState<EnrichedPolicy | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const fetchCustomerDetails = async () => {
+    if (!customerId) return;
     setLoading(true);
+    setNotFound(false);
+
     try {
       const { data: custData, error: custError } = await supabase
         .from('customers')
         .select('*')
         .eq('id', customerId)
-        .single();
+        .maybeSingle();
 
       if (custError) throw custError;
+
+      if (!custData) {
+        setNotFound(true);
+        setCustomer(null);
+        return;
+      }
+
       setCustomer(custData);
 
-      const { data: vehData, error: vehError } = await supabase
-        .from('vehicles')
-        .select('*')
-        .eq('customer_id', customerId)
-        .order('created_at', { ascending: false });
+      const [{ data: vehData }, { data: polData }] = await Promise.all([
+        supabase.from('vehicles').select('*').eq('customer_id', customerId).order('created_at', { ascending: false }),
+        supabase
+          .from('policies')
+          .select('*, insurance_companies(*), vehicles(*)')
+          .eq('customer_id', customerId)
+          .order('end_date', { ascending: false }),
+      ]);
 
-      if (vehError) throw vehError;
       setVehicles(vehData || []);
 
-      const { data: polData, error: polError } = await supabase
-        .from('policies')
-        .select('*, insurance_companies(*)')
-        .eq('customer_id', customerId)
-        .order('end_date', { ascending: false });
+      const enrichedPolicies: EnrichedPolicy[] = (polData || []).map((p: any) => ({
+        ...p,
+        statusInfo: getPolicyStatus(p.end_date),
+      }));
 
-      if (polError) throw polError;
-      setPolicies(polData || []);
+      setPolicies(enrichedPolicies);
     } catch (err) {
       console.error('Detaylar getirilemedi:', err);
     } finally {
@@ -78,225 +117,409 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
     fetchCustomerDetails();
   }, [customerId]);
 
+  const handleOpenRenewModal = (policy: Policy) => {
+    setSelectedPolicyForRenew(policy);
+    setIsRenewModalOpen(true);
+  };
+
+  const handleOpenNewPolicyModal = (vehicleId: string = '') => {
+    setSelectedVehicleForPolicy(vehicleId);
+    setIsPolicyModalOpen(true);
+  };
+
+  const handleCopyNote = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   if (loading) {
-    return <div className="p-8 text-center text-slate-500">Müşteri detayları yükleniyor...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-slate-500 font-medium text-sm">Müşteri detayları yükleniyor...</div>
+      </div>
+    );
   }
 
-  if (!customer) {
+  if (notFound || !customer) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-red-500 font-semibold">Müşteri bulunamadı.</p>
-        <Link href="/customers" className="text-blue-600 text-sm mt-2 inline-block">
-          ← Müşteri listesine dön
+      <div className="max-w-xl mx-auto mt-12 p-8 bg-white rounded-2xl border border-slate-200 text-center shadow-sm">
+        <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+        <h2 className="text-lg font-bold text-slate-800">Müşteri Bulunamadı</h2>
+        <p className="text-xs text-slate-500 mt-1">
+          Bu müşteri kaydı silinmiş olabilir veya böyle bir kayıt mevcut değil.
+        </p>
+        <Link
+          href="/customers"
+          className="inline-flex items-center gap-2 mt-5 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition-all"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Müşteriler Listesine Dön
         </Link>
       </div>
     );
   }
 
+  const unassignedPolicies = policies.filter((p) => !p.vehicle_id);
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Üst Başlık */}
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Üst Butonlar */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/customers"
-            className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100 transition-all"
+        <Link
+          href="/customers"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3.5 py-2 rounded-xl transition-all shadow-sm"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Müşterilere Dön
+        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsVehicleModalOpen(true)}
+            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm"
           >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
+            <Car className="w-4 h-4 text-blue-600" />
+            Araç Ekle
+          </button>
+          <button
+            onClick={() => handleOpenNewPolicyModal('')}
+            className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Yeni Poliçe
+          </button>
+        </div>
+      </div>
+
+      {/* Müşteri Profil Kartı */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xl">
+            <User className="w-7 h-7" />
+          </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">
+            <h1 className="text-xl font-bold text-slate-900 uppercase">
               {customer.first_name} {customer.last_name}
             </h1>
-            <p className="text-xs text-slate-500">Müşteri Kimlik ID: {customer.id}</p>
+            <p className="text-xs font-mono font-bold text-slate-500 mt-0.5 tracking-wider">
+              T.C. {customer.tc_number}
+            </p>
           </div>
         </div>
 
-        <button
-          onClick={() => setIsVehicleModalOpen(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Yeni Araç Ekle
-        </button>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+            <Phone className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400">Telefon</p>
+              <p className="text-xs font-bold text-slate-800 mt-0.5">{customer.phone}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+            <Calendar className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400">Doğum Tarihi</p>
+              <p className="text-xs font-bold text-slate-800 mt-0.5 tracking-wide">
+                {formatDateTR(customer.birth_date)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100 md:col-span-1">
+            <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold text-slate-400">Adres</p>
+              <p className="text-xs font-bold text-slate-800 uppercase mt-0.5 break-words whitespace-normal leading-relaxed">
+                {customer.address || '-'}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Müşteri Bilgi Kartı */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="space-y-2">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Kimlik Bilgisi</span>
-          <p className="text-sm font-semibold font-mono text-slate-800">{customer.tc_number}</p>
-          <p className="text-xs text-slate-500 mt-1">Not: {customer.notes || '-'}</p>
-        </div>
-        <div className="space-y-2">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">İletişim</span>
-          <p className="text-sm font-medium text-slate-800 flex items-center gap-2">
-            <Phone className="w-4 h-4 text-slate-400" /> {customer.phone}
-          </p>
-          <p className="text-sm text-slate-600 flex items-center gap-2">
-            <Mail className="w-4 h-4 text-slate-400" /> {customer.birth_date || '-'}
-          </p>
-        </div>
-        <div className="space-y-2">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Adres</span>
-          <p className="text-sm text-slate-600 flex items-start gap-2">
-            <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" /> {customer.address || '-'}
-          </p>
-        </div>
-      </div>
-
-      {/* Araçlar ve Poliçeleri */}
+      {/* Kayıtlı Araçlar ve Poliçe Takibi */}
       <div className="space-y-4">
-        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
           <Car className="w-5 h-5 text-blue-600" />
           Kayıtlı Araçlar ve Poliçe Takibi ({vehicles.length})
         </h2>
 
         {vehicles.length === 0 ? (
-          <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center">
-            <Car className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-            <p className="text-slate-700 font-medium">Bu müşteriye ait araç bulunmuyor.</p>
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-sm">
+            <Car className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <p className="text-slate-700 font-semibold text-sm">Müşteriye ait kayıtlı araç bulunmuyor.</p>
+            <p className="text-slate-400 text-xs mt-1 mb-4">Yukarıdaki &quot;Araç Ekle&quot; butonunu kullanarak yeni araç kaydedebilirsiniz.</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {vehicles.map((veh) => {
-              const vehiclePolicies = policies.filter((p) => p.vehicle_id === veh.id);
+          vehicles.map((v) => {
+            const vehiclePolicies = policies.filter((p) => p.vehicle_id === v.id);
 
-              return (
-                <div
-                  key={veh.id}
-                  className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
-                >
-                  <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="bg-slate-900 text-white font-mono font-bold px-3 py-1 rounded-md text-sm tracking-wider">
-                        {veh.plate}
+            return (
+              <div key={v.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-bold text-sm bg-slate-900 text-white px-3 py-1 rounded-lg">
+                      {v.plate}
+                    </span>
+                    <div className="text-sm">
+                      <span className="font-bold text-slate-900 uppercase">
+                        {v.brand} {v.model} {v.year ? `(${v.year})` : ''}
                       </span>
-                      <div>
-                        <span className="font-semibold text-slate-800 text-sm">
-                          {veh.brand} {veh.model} {veh.year ? `(${veh.year})` : ''}
-                        </span>
-                        <span className="text-xs text-slate-500 ml-2">
-                          {veh.vehicle_type} • Ruhsat: {veh.license_serial || '-'}
-                        </span>
-                      </div>
+                      <span className="text-xs text-slate-500 ml-2 font-medium">
+                        {v.vehicle_type} {v.license_serial ? `• Ruhsat: ${v.license_serial}` : ''}
+                      </span>
                     </div>
-
-                    <button
-                      onClick={() => setSelectedVehicleForPolicy(veh.id)}
-                      className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                    >
-                      <FilePlus2 className="w-4 h-4" />
-                      Yeni Poliçe Ekle
-                    </button>
                   </div>
 
-                  <div className="p-4">
-                    {vehiclePolicies.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic py-2">
-                        Bu araca ait kayıtlı poliçe bulunamadı.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs text-slate-600">
-                          <thead className="bg-slate-100/70 text-slate-700 font-semibold uppercase">
-                            <tr>
-                              <th className="px-4 py-2.5 rounded-l-lg">Tür</th>
-                              <th className="px-4 py-2.5">Şirket</th>
-                              <th className="px-4 py-2.5">Poliçe No</th>
-                              <th className="px-4 py-2.5">Dönem</th>
-                              <th className="px-4 py-2.5">Prim</th>
-                              <th className="px-4 py-2.5">Durum</th>
-                              <th className="px-4 py-2.5 text-right rounded-r-lg">İşlem</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {vehiclePolicies.map((pol) => {
-                              const status = getPolicyStatus(pol.end_date);
-                              return (
-                                <tr key={pol.id} className="hover:bg-slate-50/60">
-                                  <td className="px-4 py-3 font-semibold text-slate-800 flex items-center gap-1.5">
-                                    {pol.parent_policy_id && (
-                                      <span title="Yenilenmiş Poliçe">
-                                        <History className="w-3.5 h-3.5 text-blue-500" />
-                                      </span>
-                                    )}
-                                    {pol.policy_type}
-                                  </td>
-                                  <td className="px-4 py-3 font-medium text-slate-700">
-                                    {pol.insurance_companies?.name || '-'}
-                                  </td>
-                                  <td className="px-4 py-3 font-mono text-slate-600">
-                                    {pol.policy_number}
-                                  </td>
-                                  <td className="px-4 py-3 font-medium text-slate-800">
-                                    <div className="flex items-center gap-1">
-                                      <Calendar className="w-3 h-3 text-slate-400" />
-                                      {new Date(pol.start_date).toLocaleDateString('tr-TR')} - {new Date(pol.end_date).toLocaleDateString('tr-TR')}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 font-semibold text-slate-900">
-                                    {pol.premium_amount.toLocaleString('tr-TR', {
-                                      minimumFractionDigits: 2,
-                                    })}{' '}
-                                    {pol.currency}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span
-                                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border ${status.badgeClass}`}
-                                    >
-                                      {status.label}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    <button
-                                      onClick={() => setPolicyToRenew(pol)}
-                                      className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded text-xs font-semibold transition-all"
-                                    >
-                                      <RefreshCw className="w-3 h-3" />
-                                      Yenile
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => handleOpenNewPolicyModal(v.id)}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-all self-start sm:self-auto"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Yeni Poliçe Ekle
+                  </button>
                 </div>
-              );
-            })}
+
+                {vehiclePolicies.length === 0 ? (
+                  <div className="p-6 text-center text-slate-400 text-xs font-medium">
+                    Bu araca ait kayıtlı poliçe bulunmuyor.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead className="bg-slate-50/50 text-slate-500 font-bold uppercase border-b border-slate-100">
+                        <tr>
+                          <th className="px-5 py-3">TÜR</th>
+                          <th className="px-5 py-3">ŞİRKET</th>
+                          <th className="px-5 py-3">POLİÇE NO</th>
+                          <th className="px-5 py-3">DÖNEM</th>
+                          <th className="px-5 py-3">PRİM</th>
+                          <th className="px-5 py-3">DURUM</th>
+                          <th className="px-5 py-3 text-right">İŞLEM</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {vehiclePolicies.map((p) => (
+                          <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-5 py-3.5 font-bold text-slate-900">
+                              {p.policy_type}
+                            </td>
+                            <td className="px-5 py-3.5 font-semibold text-slate-800 uppercase">
+                              {p.insurance_companies?.name || '-'}
+                            </td>
+                            <td className="px-5 py-3.5 font-mono text-slate-700 font-bold">
+                              <div>{p.policy_number}</div>
+                              {/* Teklif Notu Varsa Buton Göster */}
+                              {p.notes && (
+                                <button
+                                  onClick={() => setViewingNotePolicy(p)}
+                                  className="mt-1 inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-medium"
+                                >
+                                  <FileSpreadsheet className="w-3 h-3 text-blue-500" />
+                                  Teklif Notu
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-5 py-3.5 text-slate-600">
+                              <span className="inline-flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                {formatDateTR(p.start_date)} - {formatDateTR(p.end_date)}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 font-bold text-slate-900">
+                              {p.premium_amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {p.currency}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${p.statusInfo.badgeClass}`}>
+                                {p.statusInfo.label}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 text-right">
+                              <button
+                                onClick={() => handleOpenRenewModal(p)}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg transition-all text-xs border border-emerald-200"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                Yenile
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+
+        {/* Diğer Poliçeler (DASK, Konut, Sağlık) */}
+        {unassignedPolicies.length > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+            <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Diğer Poliçeler (DASK, Konut, Sağlık)
+                </h3>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50/50 text-slate-500 font-bold uppercase border-b border-slate-100">
+                  <tr>
+                    <th className="px-5 py-3">TÜR</th>
+                    <th className="px-5 py-3">ŞİRKET</th>
+                    <th className="px-5 py-3">POLİÇE NO</th>
+                    <th className="px-5 py-3">DÖNEM</th>
+                    <th className="px-5 py-3">PRİM</th>
+                    <th className="px-5 py-3">DURUM</th>
+                    <th className="px-5 py-3 text-right">İŞLEM</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {unassignedPolicies.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-5 py-3.5 font-bold text-slate-900">
+                        {p.policy_type}
+                      </td>
+                      <td className="px-5 py-3.5 font-semibold text-slate-800 uppercase">
+                        {p.insurance_companies?.name || '-'}
+                      </td>
+                      <td className="px-5 py-3.5 font-mono text-slate-700 font-bold">
+                        <div>{p.policy_number}</div>
+                        {p.notes && (
+                          <button
+                            onClick={() => setViewingNotePolicy(p)}
+                            className="mt-1 inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-medium"
+                          >
+                            <FileSpreadsheet className="w-3 h-3 text-blue-500" />
+                            Teklif Notu
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-slate-600">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          {formatDateTR(p.start_date)} - {formatDateTR(p.end_date)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 font-bold text-slate-900">
+                        {p.premium_amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {p.currency}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${p.statusInfo.badgeClass}`}>
+                          {p.statusInfo.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <button
+                          onClick={() => handleOpenRenewModal(p)}
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg transition-all text-xs border border-emerald-200"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          Yenile
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
 
+      {/* Teklif Karşılaştırması / Poliçe Notu Görüntüleme Penceresi (Modal) */}
+      {viewingNotePolicy && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2 text-blue-600">
+                <FileSpreadsheet className="w-5 h-5" />
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Teklif Karşılaştırması & Yenileme Notu
+                </h3>
+              </div>
+              <button
+                onClick={() => setViewingNotePolicy(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="text-xs text-slate-500 flex items-center justify-between pb-2 border-b border-slate-100">
+                <span>Poliçe: <strong className="text-slate-800">{viewingNotePolicy.policy_number}</strong> ({viewingNotePolicy.policy_type})</span>
+                <span>Şirket: <strong className="text-slate-800">{viewingNotePolicy.insurance_companies?.name}</strong></span>
+              </div>
+
+              {/* Not / Fiyat Teklifleri Listesi */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 font-mono text-xs leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto select-all">
+                {viewingNotePolicy.notes}
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleCopyNote(viewingNotePolicy.notes || '')}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-600" />
+                      Kopyalandı!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-slate-500" />
+                      Teklifleri Kopyala
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewingNotePolicy(null)}
+                  className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Diğer Modallar */}
       <AddVehicleModal
         isOpen={isVehicleModalOpen}
-        customerId={customerId}
         onClose={() => setIsVehicleModalOpen(false)}
         onSuccess={fetchCustomerDetails}
+        customerId={customer.id}
       />
 
-      {selectedVehicleForPolicy && (
-        <AddPolicyModal
-          isOpen={true}
-          customerId={customerId}
-          vehicleId={selectedVehicleForPolicy}
-          onClose={() => setSelectedVehicleForPolicy(null)}
-          onSuccess={fetchCustomerDetails}
-        />
-      )}
+      <AddPolicyModal
+        isOpen={isPolicyModalOpen}
+        onClose={() => setIsPolicyModalOpen(false)}
+        onSuccess={fetchCustomerDetails}
+        customerId={customer.id}
+        vehicleId={selectedVehicleForPolicy}
+      />
 
-      {policyToRenew && (
-        <RenewPolicyModal
-          isOpen={true}
-          policy={policyToRenew}
-          onClose={() => setPolicyToRenew(null)}
-          onSuccess={fetchCustomerDetails}
-        />
-      )}
+      <RenewPolicyModal
+        isOpen={isRenewModalOpen}
+        onClose={() => {
+          setIsRenewModalOpen(false);
+          setSelectedPolicyForRenew(null);
+        }}
+        onSuccess={fetchCustomerDetails}
+        policy={selectedPolicyForRenew}
+      />
     </div>
   );
 }
